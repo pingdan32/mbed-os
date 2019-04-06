@@ -545,6 +545,16 @@ public:
     }
 
     /**
+     * Construct a GapAdvertising instance with an array of bytes.
+     */
+    GapAdvertisingData(const uint8_t *payload, uint8_t len):
+        _payload(),
+        _payloadLen(len),
+        _appearance(GENERIC_TAG) {
+        memcpy(_payload, payload, len);
+    }
+
+    /**
      * Adds a new field into the payload.
      *
      * If the supplied advertising data type is already present in the

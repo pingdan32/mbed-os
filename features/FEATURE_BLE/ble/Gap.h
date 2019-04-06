@@ -296,6 +296,11 @@ public:
          * If set, the device is connected to at least one other peer.
          */
         unsigned connected : 1;
+
+        /**
+         * If set, the device is currently scanning.
+         */
+        unsigned scanning: 1;
     };
 
     /**
@@ -1335,6 +1340,13 @@ protected:
         "implement startScan(duplicates_filter_t, scan_duration_t, period)"
     )
     ble_error_t startRadioScan(const GapScanningParams &scanningParams);
+
+    /**
+     * Stop scanning procedure in the underlying BLE stack.
+     *
+     * @retval BLE_ERROR_NONE if successfully stopped scanning procedure.
+     */
+    ble_error_t stopRadioScan();
 #endif // BLE_ROLE_OBSERVER
 
     /*
@@ -1885,6 +1897,15 @@ public:
         T *object,
         void (T::*callbackMember)(const AdvertisementCallbackParams_t *params)
     );
+
+    /**
+     * Stop the ongoing scanning procedure.
+     *
+     * The current scanning parameters remain in effect.
+     *
+     * @retval BLE_ERROR_NONE if successfully stopped scanning procedure.
+     */
+    ble_error_t stopScan();
 #endif // BLE_ROLE_OBSERVER
 
     /**
@@ -2473,10 +2494,10 @@ protected:
      */
     GapState_t state;
 
-    /**
-     * Active scanning flag.
-     */
-    bool scanningActive;
+    // /**
+    //  * Active scanning flag.
+    //  */
+    // bool scanningActive;
 
 protected:
     /**
@@ -2653,7 +2674,7 @@ ble_error_t LegacyGap<Impl>::startScan(
     ble_error_t err = BLE_ERROR_NONE;
     if (object && callbackMember) {
         if ((err = startRadioScan(_scanningParams)) == BLE_ERROR_NONE) {
-            scanningActive = true;
+            state.scanning = true;
             onAdvertisementReport.attach(object, callbackMember);
         }
     }

@@ -154,6 +154,7 @@ ble_error_t LegacyGap<Impl>::connect(
     const ConnectionParams_t *connectionParams,
     const GapScanningParams *scanParams
 ) {
+    stopScan();
     return impl()->connect_(
         peerAddr,
         peerAddrType,
@@ -169,6 +170,7 @@ ble_error_t LegacyGap<Impl>::connect(
     const ConnectionParams_t *connectionParams,
     const GapScanningParams *scanParams
 ) {
+    stopScan();
     return impl()->connect_(
         peerAddr,
         peerAddrType,
@@ -257,6 +259,10 @@ LegacyGap<Impl>::getInitiatorPolicyMode(void) const {
 template<class Impl>
 ble_error_t LegacyGap<Impl>::startRadioScan(const GapScanningParams &scanningParams) {
     return impl()->startRadioScan_(scanningParams);
+}
+template<class Impl>
+ble_error_t LegacyGap<Impl>::stopRadioScan() {
+    return impl()->stopScan_();
 }
 #endif // BLE_ROLE_OBSERVER
 
@@ -496,7 +502,7 @@ ble_error_t LegacyGap<Impl>::setScanWindow(uint16_t window)
     }
 
     /* If scanning is already active, propagate the new setting to the stack. */
-    if (scanningActive) {
+    if (state.scanning) {
         return startRadioScan(_scanningParams);
     }
 
@@ -512,7 +518,7 @@ ble_error_t LegacyGap<Impl>::setScanTimeout(uint16_t timeout)
     }
 
     /* If scanning is already active, propagate the new settings to the stack. */
-    if (scanningActive) {
+    if (state.scanning) {
         return startRadioScan(_scanningParams);
     }
 
@@ -525,7 +531,7 @@ ble_error_t LegacyGap<Impl>::setActiveScanning(bool activeScanning)
     _scanningParams.setActiveScanning(activeScanning);
 
     /* If scanning is already active, propagate the new settings to the stack. */
-    if (scanningActive) {
+    if (state.scanning) {
         return startRadioScan(_scanningParams);
     }
 
@@ -539,11 +545,22 @@ ble_error_t LegacyGap<Impl>::startScan(
     ble_error_t err = BLE_ERROR_NONE;
     if (callback) {
         if ((err = startRadioScan(_scanningParams)) == BLE_ERROR_NONE) {
-            scanningActive = true;
+            state.scanning = true;
             onAdvertisementReport.attach(callback);
         }
     }
 
+    return err;
+}
+
+template<class Impl>
+ble_error_t LegacyGap<Impl>::stopScan() {
+    ble_error_t err = BLE_ERROR_NONE;
+    if (state.scanning) {
+        if ((err = stopRadioScan()) == BLE_ERROR_NONE) {
+            state.scanning = false;
+        }
+    }
     return err;
 }
 #endif // BLE_ROLE_OBSERVER
@@ -951,7 +968,6 @@ LegacyGap<Impl>::LegacyGap() :
     _scanResponse(),
     connectionCount(0),
     state(),
-    scanningActive(false),
     timeoutCallbackChain(),
     radioNotificationCallback(),
     onAdvertisementReport(),
@@ -983,6 +999,9 @@ void LegacyGap<Impl>::processTimeoutEvent(TimeoutSource_t source)
     if (source == TIMEOUT_SRC_ADVERTISING) {
         /* Update gap state if the source is an advertising timeout */
         state.advertising = 0;
+    } else if (source == TIMEOUT_SRC_SCAN) {
+        /* Update gap state if the source is an scanning timeout */
+        state.scanning = 0;
     }
     if (timeoutCallbackChain) {
         timeoutCallbackChain(source);
@@ -1024,7 +1043,7 @@ ble_error_t LegacyGap<Impl>::reset_(void)
 
     /* Clear scanning state */
 #if BLE_ROLE_OBSERVER
-    scanningActive = false;
+    state.scanning = false;
 #endif
 
 #if BLE_ROLE_BROADCASTER
