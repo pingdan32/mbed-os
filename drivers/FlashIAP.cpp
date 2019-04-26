@@ -27,6 +27,7 @@
 #include "platform/mbed_assert.h"
 #include "platform/ScopedRamExecutionLock.h"
 #include "platform/ScopedRomWriteLock.h"
+#include "platform/mbed_wait_api.h"
 
 
 #if DEVICE_FLASH
@@ -154,6 +155,7 @@ int FlashIAP::program(const void *buffer, uint32_t addr, uint32_t size)
                 } else {
                     break;
                 }
+                wait_ms(1);
             }
         }
         size -= chunk;

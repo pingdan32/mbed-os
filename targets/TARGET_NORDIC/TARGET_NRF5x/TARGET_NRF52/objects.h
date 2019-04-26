@@ -140,6 +140,7 @@ struct gpio_irq_s {
 
 struct flash_s {
     uint32_t placeholder;
+    uint8_t *data_current_buffer;
 };
 
 #if DEVICE_QSPI
