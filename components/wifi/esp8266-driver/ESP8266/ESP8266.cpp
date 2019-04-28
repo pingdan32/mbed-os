@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-#if DEVICE_SERIAL && defined(MBED_CONF_EVENTS_PRESENT) && defined(MBED_CONF_NSAPI_PRESENT) && defined(MBED_CONF_RTOS_PRESENT)
+#if DEVICE_SERIAL && DEVICE_INTERRUPTIN && defined(MBED_CONF_EVENTS_PRESENT) && defined(MBED_CONF_NSAPI_PRESENT) && defined(MBED_CONF_RTOS_PRESENT)
+#ifndef __STDC_FORMAT_MACROS
+#define __STDC_FORMAT_MACROS
+#endif
+#include <inttypes.h>
+
 #include <string.h>
-#include <stdint.h>
 #include <stdlib.h>
 
 #include "ESP8266.h"
@@ -100,7 +104,7 @@ bool ESP8266::at_available()
 
     _smutex.lock();
     // Might take a while to respond after HW reset
-    for(int i = 0; i < 5; i++) {
+    for (int i = 0; i < 5; i++) {
         ready = _parser.send("AT")
                 && _parser.recv("OK\n");
         if (ready) {
@@ -195,7 +199,7 @@ bool ESP8266::start_uart_hw_flow_ctrl(void)
 
         if (done) {
             // Start board's flow control
-             _serial.set_flow_control(SerialBase::RTSCTS, _serial_rts, _serial_cts);
+            _serial.set_flow_control(SerialBase::RTSCTS, _serial_rts, _serial_cts);
         }
 
     } else if (_serial_rts != NC) {
@@ -591,7 +595,7 @@ nsapi_error_t ESP8266::send(int id, const void *data, uint32_t amount)
     // Data stream can be truncated
     if (amount > 2048 && _sock_i[id].proto == NSAPI_TCP) {
         amount = 2048;
-    // Datagram must stay intact
+        // Datagram must stay intact
     } else if (amount > 2048 && _sock_i[id].proto == NSAPI_UDP) {
         tr_debug("UDP datagram maximum size is 2048");
         return NSAPI_ERROR_PARAMETER;
@@ -601,12 +605,12 @@ nsapi_error_t ESP8266::send(int id, const void *data, uint32_t amount)
     set_timeout(ESP8266_SEND_TIMEOUT);
     _busy = false;
     _error = false;
-    if (!_parser.send("AT+CIPSEND=%d,%lu", id, amount)) {
+    if (!_parser.send("AT+CIPSEND=%d,%" PRIu32, id, amount)) {
         tr_debug("ESP8266::send(): AT+CIPSEND failed");
         goto END;
     }
 
-    if(!_parser.recv(">")) {
+    if (!_parser.recv(">")) {
         tr_debug("ESP8266::send(): didn't get \">\"");
         ret = NSAPI_ERROR_WOULD_BLOCK;
         goto END;
@@ -657,7 +661,7 @@ void ESP8266::_oob_packet_hdlr()
         return;
     }
 
-    if(_tcp_passive && _sock_i[id].open == true && _sock_i[id].proto == NSAPI_TCP) {
+    if (_tcp_passive && _sock_i[id].open == true && _sock_i[id].proto == NSAPI_TCP) {
         if (_parser.recv("%d\n", &amount)) {
             _sock_i[id].tcp_data_avbl = amount;
 
@@ -726,7 +730,7 @@ int32_t ESP8266::_recv_tcp_passive(int id, void *data, uint32_t amount, uint32_t
     _process_oob(timeout, true);
 
     if (_sock_i[id].tcp_data_avbl != 0) {
-        _sock_i[id].tcp_data = (char*)data;
+        _sock_i[id].tcp_data = (char *)data;
         _sock_i[id].tcp_data_rcvd = NSAPI_ERROR_WOULD_BLOCK;
         _sock_active_id = id;
 
@@ -734,8 +738,8 @@ int32_t ESP8266::_recv_tcp_passive(int id, void *data, uint32_t amount, uint32_t
         amount = amount > 2048 ? 2048 : amount;
 
         // NOTE: documentation v3.0 says '+CIPRECVDATA:<data_len>,' but it's not how the FW responds...
-        bool done = _parser.send("AT+CIPRECVDATA=%d,%lu", id, amount)
-                                && _parser.recv("OK\n");
+        bool done = _parser.send("AT+CIPRECVDATA=%d,%" PRIu32, id, amount)
+                    && _parser.recv("OK\n");
 
         _sock_i[id].tcp_data = NULL;
         _sock_active_id = -1;
@@ -972,26 +976,26 @@ bool ESP8266::_recv_ap(nsapi_wifi_ap_t *ap)
 
     if (FW_AT_LEAST_VERSION(_at_v.major, _at_v.minor, _at_v.patch, 0, ESP8266_AT_VERSION_WIFI_SCAN_CHANGE)) {
         ret = _parser.recv("+CWLAP:(%d,\"%32[^\"]\",%hhd,\"%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\",%hhu,%d,%d,%d,%d,%d,%d)\n",
-                        &sec,
-                        ap->ssid,
-                        &ap->rssi,
-                        &ap->bssid[0], &ap->bssid[1], &ap->bssid[2], &ap->bssid[3], &ap->bssid[4], &ap->bssid[5],
-                        &ap->channel,
-                        &dummy,
-                        &dummy,
-                        &dummy,
-                        &dummy,
-                        &dummy,
-                        &dummy);
+                           &sec,
+                           ap->ssid,
+                           &ap->rssi,
+                           &ap->bssid[0], &ap->bssid[1], &ap->bssid[2], &ap->bssid[3], &ap->bssid[4], &ap->bssid[5],
+                           &ap->channel,
+                           &dummy,
+                           &dummy,
+                           &dummy,
+                           &dummy,
+                           &dummy,
+                           &dummy);
     } else {
         ret = _parser.recv("+CWLAP:(%d,\"%32[^\"]\",%hhd,\"%hhx:%hhx:%hhx:%hhx:%hhx:%hhx\",%hhu,%d,%d)\n",
-                        &sec,
-                        ap->ssid,
-                        &ap->rssi,
-                        &ap->bssid[0], &ap->bssid[1], &ap->bssid[2], &ap->bssid[3], &ap->bssid[4], &ap->bssid[5],
-                        &ap->channel,
-                        &dummy,
-                        &dummy);
+                           &sec,
+                           ap->ssid,
+                           &ap->rssi,
+                           &ap->bssid[0], &ap->bssid[1], &ap->bssid[2], &ap->bssid[3], &ap->bssid[4], &ap->bssid[5],
+                           &ap->channel,
+                           &dummy,
+                           &dummy);
 
     }
 
@@ -1052,7 +1056,7 @@ void ESP8266::_oob_tcp_data_hdlr()
 
     MBED_ASSERT(_sock_active_id >= 0 && _sock_active_id < 5);
 
-    if (!_parser.recv("%ld:", &len)) {
+    if (!_parser.recv("%" SCNd32 ":", &len)) {
         return;
     }
 

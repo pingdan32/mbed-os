@@ -34,7 +34,6 @@ enum UT_CellularState {
     UT_STATE_DEVICE_READY,
     UT_STATE_SIM_PIN,
     UT_STATE_REGISTERING_NETWORK,
-    UT_STATE_MANUAL_REGISTERING_NETWORK,
     UT_STATE_ATTACHING_NETWORK,
     UT_STATE_MAX_FSM_STATE
 };
@@ -74,9 +73,9 @@ public:
         _state_machine = NULL;
     }
 
-    CellularStateMachine *create_state_machine(CellularDevice &device, events::EventQueue &queue)
+    CellularStateMachine *create_state_machine(CellularDevice &device, events::EventQueue &queue, CellularNetwork &nw)
     {
-        _state_machine = new CellularStateMachine(device, queue);
+        _state_machine = new CellularStateMachine(device, queue, nw);
         return _state_machine;
     }
 
@@ -172,7 +171,7 @@ TEST_F(TestCellularStateMachine, test_create_delete)
     CellularDevice *dev = new myCellularDevice(&fh1);
     EXPECT_TRUE(dev);
 
-    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue());
+    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     ut.delete_state_machine();
 
@@ -188,7 +187,7 @@ TEST_F(TestCellularStateMachine, test_setters)
     CellularDevice *dev = new myCellularDevice(&fh1);
     EXPECT_TRUE(dev);
 
-    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue());
+    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     ut.set_cellular_callback(&cellular_callback);
 
@@ -216,14 +215,14 @@ TEST_F(TestCellularStateMachine, test_start_dispatch)
     CellularDevice *dev = new myCellularDevice(&fh1);
     EXPECT_TRUE(dev);
 
-    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue());
+    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     nsapi_error_t err = ut.start_dispatch();
     ASSERT_EQ(NSAPI_ERROR_OK, err);
     ut.delete_state_machine();
 
     Thread_stub::osStatus_value = osErrorNoMemory;
-    stm = ut.create_state_machine(*dev, *dev->get_queue());
+    stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     err = ut.start_dispatch();
     ASSERT_EQ(NSAPI_ERROR_NO_MEMORY, err);
@@ -241,13 +240,13 @@ TEST_F(TestCellularStateMachine, test_stop)
     CellularDevice *dev = new AT_CellularDevice(&fh1);
     EXPECT_TRUE(dev);
 
-    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue());
+    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
 
     ut.stop(); // nothing created, run through
     ut.delete_state_machine();
 
-    stm = ut.create_state_machine(*dev, *dev->get_queue());
+    stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     nsapi_error_t err = ut.start_dispatch();
     ASSERT_EQ(NSAPI_ERROR_OK, err);
@@ -255,7 +254,7 @@ TEST_F(TestCellularStateMachine, test_stop)
     ut.stop(); // thread is created, now stop will delete it
     ut.delete_state_machine();
 
-    stm = ut.create_state_machine(*dev, *dev->get_queue());
+    stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     err = ut.start_dispatch();
     ASSERT_EQ(NSAPI_ERROR_OK, err);
@@ -271,7 +270,7 @@ TEST_F(TestCellularStateMachine, test_stop)
     ut.stop(); // thread and power are created, now stop will delete them
     ut.delete_state_machine();
 
-    stm = ut.create_state_machine(*dev, *dev->get_queue());
+    stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
     err = ut.start_dispatch();
     ASSERT_EQ(NSAPI_ERROR_OK, err);
@@ -295,7 +294,7 @@ TEST_F(TestCellularStateMachine, test_run_to_state)
     CellularDevice *dev = new AT_CellularDevice(&fh1);
     EXPECT_TRUE(dev);
 
-    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue());
+    CellularStateMachine *stm = ut.create_state_machine(*dev, *dev->get_queue(), *dev->open_network());
     EXPECT_TRUE(stm);
 
     nsapi_error_t err = ut.start_dispatch();
@@ -392,8 +391,8 @@ TEST_F(TestCellularStateMachine, test_run_to_state)
     ut.set_plmn("12345");
     ASSERT_EQ(NSAPI_ERROR_OK, ut.run_to_device_registered());
     (void)ut.get_current_status(current_state, target_state);
-    ASSERT_EQ(UT_STATE_MANUAL_REGISTERING_NETWORK, current_state);
-    ASSERT_EQ(UT_STATE_MANUAL_REGISTERING_NETWORK, target_state);
+    ASSERT_EQ(UT_STATE_REGISTERING_NETWORK, current_state);
+    ASSERT_EQ(UT_STATE_REGISTERING_NETWORK, target_state);
     ut.cellular_event_changed((nsapi_event_t)CellularRegistrationStatusChanged, (intptr_t)&data);
     ut.reset();
 

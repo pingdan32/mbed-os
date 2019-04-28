@@ -85,7 +85,7 @@ class DeviceUvision(DeviceCMSIS):
         # Default according to Keil developer
         ramsize = '1000'
         if len(RAMS) >= 1:
-            ramstart = RAMS[0][0]
+            ramstart = '{:x}'.format(RAMS[0][0])
         extra_flags = []
         for info in self.target_info["algorithms"]:
             if not info:
@@ -93,7 +93,7 @@ class DeviceUvision(DeviceCMSIS):
             if not info["default"]:
                 continue
             name = info['file_name']
-            name_reg = "\w*/([\w_]+)\.flm"
+            name_reg = "\w*[/\\\\]([\w_]+)\.flm"
             m = re.search(name_reg, name.lower())
             fl_name = m.group(1) if m else None
             name_flag = "-FF" + str(fl_count) + fl_name
@@ -103,9 +103,9 @@ class DeviceUvision(DeviceCMSIS):
             rom_start_flag = "-FS" + str(fl_count) + str(start)
             rom_size_flag = "-FL" + str(fl_count) + str(size)
 
-            if info["ramstart"] is not None and info["ramsize"] is not None:
-                ramstart = '{:x}'.format(info["ramstart"])
-                ramsize = '{:x}'.format(info["ramsize"])
+            if info["ram_start"] is not None and info["ram_size"] is not None:
+                ramstart = '{:x}'.format(info["ram_start"])
+                ramsize = '{:x}'.format(info["ram_size"])
 
             path_flag = "-FP{}($$Device:{}${})".format(
                 str(fl_count), self.dname, name
@@ -241,15 +241,17 @@ class Uvision(Exporter):
             'project_files': sorted(list(self.format_src(srcs).items()),
                                     key=lambda tuple: tuple[0].lower()),
             'include_paths': ';'.join(self.filter_dot(d) for d in
-                                      self.resources.inc_dirs).encode('utf-8'),
+                                      self.resources.inc_dirs),
             'device': DeviceUvision(self.target),
         }
-        sct_name, sct_path = self.resources.get_file_refs(
-            FileType.LD_SCRIPT)[0]
-        ctx['linker_script'] = self.toolchain.correct_scatter_shebang(
-            sct_path, dirname(sct_name))
-        if ctx['linker_script'] != sct_path:
-            self.generated_files.append(ctx['linker_script'])
+        sct_file_ref = self.resources.get_file_refs(FileType.LD_SCRIPT)[0]
+        sct_file_ref = self.toolchain.correct_scatter_shebang(
+            sct_file_ref, dirname(sct_file_ref.name)
+        )
+        self.resources.add_file_ref(
+            FileType.LD_SCRIPT, sct_file_ref.name, sct_file_ref.path
+        )
+        ctx['linker_script'] = sct_file_ref.name
         fpu_included_core_name = ctx['device'].core.replace("-NS", "")
         ctx['cputype'] = fpu_included_core_name.rstrip("FDE")
         if fpu_included_core_name.endswith("FD"):
@@ -323,8 +325,8 @@ class UvisionArmc5(Uvision):
         else:
             if not (set(target.supported_toolchains).intersection(
                     set(["ARM", "uARM"]))):
-                return False        
-            
+                return False
+
         if not DeviceCMSIS.check_supported(target_name):
             return False
         if "Cortex-A" in target.core:
@@ -352,7 +354,7 @@ class UvisionArmc6(Uvision):
         else:
             if "ARMC6" not in target.supported_toolchains:
                 return False
-                
+
         if not DeviceCMSIS.check_supported(target_name):
             return False
         if "Cortex-A" in target.core:

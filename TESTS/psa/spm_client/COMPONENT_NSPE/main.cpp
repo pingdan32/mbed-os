@@ -27,8 +27,8 @@
 #include "psa_manifest/sid.h"
 
 #if defined(TARGET_TFM)
-#include "psa/service.h"
 #define MBED_CONF_SPM_IPC_MAX_NUM_OF_CHANNELS TFM_CONN_HANDLE_MAX_NUM
+#define PSA_MAX_IOVEC 4
 #endif
 
 using namespace utest::v1;
@@ -475,9 +475,7 @@ Case cases[] = {
 utest::v1::status_t test_setup(const size_t number_of_cases)
 {
     // Setup Greentea using a reasonable timeout in seconds
-#ifndef NO_GREENTEA
     GREENTEA_SETUP(60, "default_auto");
-#endif
     return verbose_test_setup_handler(number_of_cases);
 }
 

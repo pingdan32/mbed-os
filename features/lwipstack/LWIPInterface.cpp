@@ -467,7 +467,7 @@ nsapi_error_t LWIP::add_l3ip_interface(L3IP &l3ip, bool default_if, OnboardNetwo
 #if LWIP_IPV4
                    0, 0, 0,
 #endif
-                   interface, &LWIP::Interface::l3ip_if_init, ip_input)) {
+                   interface, &LWIP::Interface::l3ip_if_init, tcpip_input)) {
         return NSAPI_ERROR_DEVICE_ERROR;
     }
 
@@ -647,7 +647,7 @@ nsapi_error_t LWIP::Interface::bringup(bool dhcp, const char *ip, const char *ne
 
     if (!netif_is_link_up(&netif)) {
         if (blocking) {
-            if (osSemaphoreAcquire(linked, 15000) != osOK) {
+            if (osSemaphoreAcquire(linked, LINK_TIMEOUT * 1000) != osOK) {
                 if (ppp) {
                     (void) ppp_lwip_disconnect(hw);
                 }

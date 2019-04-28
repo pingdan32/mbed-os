@@ -17,7 +17,7 @@
 #ifndef _CELLULAR_STATEMACHINE_H_
 #define _CELLULAR_STATEMACHINE_H_
 
-#include "EventQueue.h"
+#include "events/EventQueue.h"
 #include "CellularNetwork.h"
 #include "CellularCommon.h"
 #include "PlatformMutex.h"
@@ -46,8 +46,9 @@ private:
      *
      * @param device    reference to CellularDevice
      * @param queue     reference to queue used in state transitions
+     * @param nw        reference to CellularNetwork
      */
-    CellularStateMachine(CellularDevice &device, events::EventQueue &queue);
+    CellularStateMachine(CellularDevice &device, events::EventQueue &queue, CellularNetwork &nw);
     ~CellularStateMachine();
 
     /** Cellular connection states
@@ -58,7 +59,6 @@ private:
         STATE_DEVICE_READY,
         STATE_SIM_PIN,
         STATE_REGISTERING_NETWORK,
-        STATE_MANUAL_REGISTERING_NETWORK,
         STATE_ATTACHING_NETWORK,
         STATE_MAX_FSM_STATE
     };
@@ -146,12 +146,10 @@ private:
     void state_device_ready();
     void state_sim_pin();
     void state_registering();
-    void state_manual_registering_network();
     void state_attaching();
     void enter_to_state(CellularState state);
     void retry_state_or_fail();
     void continue_from_state(CellularState state);
-    bool is_registered_to_plmn();
     void report_failure(const char *msg);
     void event();
     void device_ready_cb();
@@ -165,7 +163,7 @@ private:
 
     Callback<void(nsapi_event_t, intptr_t)> _event_status_cb;
 
-    CellularNetwork *_network;
+    CellularNetwork &_network;
     events::EventQueue &_queue;
     rtos::Thread *_queue_thread;
 
@@ -179,7 +177,6 @@ private:
     int _event_id;
     const char *_plmn;
     bool _command_success;
-    bool _plmn_network_found;
     bool _is_retry;
     cell_callback_data_t _cb_data;
     nsapi_event_t _current_event;

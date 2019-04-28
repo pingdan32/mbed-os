@@ -1,6 +1,6 @@
 """
 mbed SDK
-Copyright (c) 2011-2013 ARM Limited
+Copyright (c) 2011-2019 ARM Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,9 +18,8 @@ from __future__ import print_function, absolute_import
 from builtins import str  # noqa: F401
 
 import re
-import os
 from copy import copy
-from os.path import join, dirname, splitext, basename, exists, isfile, split
+from os.path import join, dirname, splitext, basename, exists, isfile, relpath
 from os import makedirs, write, remove
 from tempfile import mkstemp
 from shutil import rmtree
@@ -28,7 +27,8 @@ from distutils.version import LooseVersion
 
 from tools.targets import CORE_ARCH
 from tools.toolchains.mbed_toolchain import mbedToolchain, TOOLCHAIN_PATHS
-from tools.utils import mkdir, NotSupportedException, ToolException, run_cmd
+from tools.utils import mkdir, NotSupportedException, run_cmd
+from tools.resources import FileRef
 
 ARMC5_MIGRATION_WARNING = (
     "Warning: We noticed that you are using Arm Compiler 5. "
@@ -37,6 +37,7 @@ ARMC5_MIGRATION_WARNING = (
     "which is free to use with Mbed OS. For more information, "
     "please visit https://os.mbed.com/docs/mbed-os/latest/tools/index.html"
 )
+
 
 class ARM(mbedToolchain):
     LINKER_EXT = '.sct'
@@ -184,7 +185,7 @@ class ARM(mbedToolchain):
     def parse_output(self, output):
         msg = None
         for line in output.splitlines():
-            match = ARM.DIAGNOSTIC_PATTERN.match(line)
+            match = self.DIAGNOSTIC_PATTERN.match(line)
             if match is not None:
                 if msg is not None:
                     self.notify.cc_info(msg)
@@ -272,41 +273,48 @@ class ARM(mbedToolchain):
     def compile_cpp(self, source, object, includes):
         return self.compile(self.cppc, source, object, includes)
 
-    def correct_scatter_shebang(self, scatter_file, cur_dir_name=None):
+    def correct_scatter_shebang(self, sc_fileref, cur_dir_name=None):
         """Correct the shebang at the top of a scatter file.
 
         Positional arguments:
-        scatter_file -- the scatter file to correct
+        sc_fileref -- FileRef object of the scatter file
 
         Keyword arguments:
         cur_dir_name -- the name (not path) of the directory containing the
                         scatter file
 
         Return:
-        The location of the correct scatter file
+        The FileRef of the correct scatter file
 
         Side Effects:
         This method MAY write a new scatter file to disk
         """
-        with open(scatter_file, "r") as input:
+        with open(sc_fileref.path, "r") as input:
             lines = input.readlines()
             if (lines[0].startswith(self.SHEBANG) or
-                    not lines[0].startswith("#!")):
-                return scatter_file
+                not lines[0].startswith("#!")):
+                return sc_fileref
             else:
                 new_scatter = join(self.build_dir, ".link_script.sct")
                 if cur_dir_name is None:
-                    cur_dir_name = dirname(scatter_file)
+                    cur_dir_name = dirname(sc_fileref.path)
                 self.SHEBANG += " -I %s" % cur_dir_name
-                if self.need_update(new_scatter, [scatter_file]):
+                if self.need_update(new_scatter, [sc_fileref.path]):
                     with open(new_scatter, "w") as out:
                         out.write(self.SHEBANG)
                         out.write("\n")
                         out.write("".join(lines[1:]))
 
-                return new_scatter
+                return FileRef(".link_script.sct", new_scatter)
 
-    def get_link_command(self, output, objects, libraries, lib_dirs, scatter_file):
+    def get_link_command(
+            self,
+            output,
+            objects,
+            libraries,
+            lib_dirs,
+            scatter_file
+    ):
         base, _ = splitext(output)
         map_file = base + ".map"
         args = ["-o", output, "--info=totals", "--map", "--list=%s" % map_file]
@@ -315,8 +323,9 @@ class ARM(mbedToolchain):
         if lib_dirs:
             args.extend(["--userlibpath", ",".join(lib_dirs)])
         if scatter_file:
-            new_scatter = self.correct_scatter_shebang(scatter_file)
-            args.extend(["--scatter", new_scatter])
+            scatter_name = relpath(scatter_file)
+            new_scatter = self.correct_scatter_shebang(FileRef(scatter_name, scatter_file))
+            args.extend(["--scatter", new_scatter.path])
 
         cmd = self.ld + args
 
@@ -378,6 +387,7 @@ class ARM(mbedToolchain):
         write(handle, "RESOLVE %s AS %s\n" % (source, sync))
         return "--edit=%s" % filename
 
+
 class ARM_STD(ARM):
 
     OFFICIALLY_SUPPORTED = True
@@ -399,9 +409,11 @@ class ARM_STD(ARM):
             build_profile=build_profile
         )
         if int(target.build_tools_metadata["version"]) > 0:
-            #check only for ARMC5 because ARM_STD means using ARMC5, and thus
+            # check only for ARMC5 because ARM_STD means using ARMC5, and thus
             # supported_toolchains must include ARMC5
-            if not set(target.supported_toolchains).intersection(set(("ARMC5", "ARM"))):
+            if not set(target.supported_toolchains).intersection(
+                    set(("ARMC5", "ARM"))
+            ):
                 raise NotSupportedException(
                     "ARM compiler 5 support is required for ARM build"
                 )
@@ -412,6 +424,7 @@ class ARM_STD(ARM):
                 raise NotSupportedException(
                     "ARM/uARM compiler support is required for ARM build"
                 )
+
 
 class ARM_MICRO(ARM):
 
@@ -434,7 +447,7 @@ class ARM_MICRO(ARM):
             # At this point we already know that we want to use ARMC5+Microlib
             # so check for if they are supported For, AC6+Microlib we still
             # use ARMC6 class
-            if not set(("ARMC5","uARM")).issubset(set(
+            if not set(("ARMC5", "uARM")).issubset(set(
                     target.supported_toolchains
             )):
                 raise NotSupportedException(
@@ -469,6 +482,10 @@ class ARMC6(ARM_STD):
         "Cortex-A9"
     ]
     ARMCC_RANGE = (LooseVersion("6.10"), LooseVersion("7.0"))
+    LD_DIAGNOSTIC_PATTERN = re.compile(
+        '(?P<severity>Warning|Error): (?P<message>.+)'
+    )
+    DIAGNOSTIC_PATTERN = re.compile('((?P<file>[^:]+):(?P<line>\d+):)(?P<col>\d+):? (?P<severity>warning|[eE]rror|fatal error): (?P<message>.+)')
 
     @staticmethod
     def check_executable():
@@ -586,9 +603,9 @@ class ARMC6(ARM_STD):
         self.ar = join(TOOLCHAIN_PATHS["ARMC6"], "armar")
         self.elf2bin = join(TOOLCHAIN_PATHS["ARMC6"], "fromelf")
 
-        # Adding this for safety since this inherits the `version_check` function
-        # but does not call the constructor of ARM_STD, so the `product_name` variable
-        # is not initialized.
+        # Adding this for safety since this inherits the `version_check`
+        # function but does not call the constructor of ARM_STD, so the
+        # `product_name` variable is not initialized.
         self.product_name = None
 
     def _get_toolchain_labels(self):
@@ -608,7 +625,31 @@ class ARMC6(ARM_STD):
         return "#error [NOT_SUPPORTED]" in output
 
     def parse_output(self, output):
-        pass
+        for line in output.splitlines():
+            match = self.LD_DIAGNOSTIC_PATTERN.match(line)
+            if match is not None:
+                self.notify.cc_info({
+                    'severity': match.group('severity').lower(),
+                    'message': match.group('message'),
+                    'text': '',
+                    'target_name': self.target.name,
+                    'toolchain_name': self.name,
+                    'col': 0,
+                    'file': "",
+                    'line': 0
+                })
+            match = self.DIAGNOSTIC_PATTERN.search(line)
+            if match is not None:
+                self.notify.cc_info({
+                    'severity': match.group('severity').lower(),
+                    'file': match.group('file'),
+                    'line': match.group('line'),
+                    'col': match.group('col'),
+                    'message': match.group('message'),
+                    'text': '',
+                    'target_name': self.target.name,
+                    'toolchain_name': self.name
+                })
 
     def get_config_option(self, config_header):
         return ["-include", config_header]
@@ -638,11 +679,21 @@ class ARMC6(ARM_STD):
         return opts
 
     def assemble(self, source, object, includes):
-        cmd_pre = copy(self.asm)
+        # Preprocess first, then assemble
+        root, _ = splitext(object)
+        tempfile = root + '.E'
+
+        # Build preprocess assemble command
+        cmd_pre = copy(self.cc)
         cmd_pre.extend(self.get_compile_options(
-            self.get_symbols(True), includes, for_asm=True))
-        cmd_pre.extend(["-o", object, source])
-        return [cmd_pre]
+            self.get_symbols(True), includes, for_asm=False))
+        cmd_pre.extend(["-E", "-MT", object, "-o", tempfile, source])
+
+        # Build main assemble command
+        cmd = self.asm + ["-o", object, tempfile]
+
+        # Return command array, don't execute
+        return [cmd_pre, cmd]
 
     def compile(self, cc, source, object, includes):
         cmd = copy(cc)
@@ -650,7 +701,14 @@ class ARMC6(ARM_STD):
         cmd.extend(["-o", object, source])
         return [cmd]
 
-    def get_link_command(self, output, objects, libraries, lib_dirs, scatter_file):
+    def get_link_command(
+            self,
+            output,
+            objects,
+            libraries,
+            lib_dirs,
+            scatter_file
+    ):
         cmd = ARM.get_link_command(
             self, output, objects, libraries, lib_dirs, scatter_file
         )
