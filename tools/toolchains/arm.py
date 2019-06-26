@@ -25,7 +25,6 @@ from tempfile import mkstemp
 from shutil import rmtree
 from distutils.version import LooseVersion
 
-from tools.targets import CORE_ARCH
 from tools.toolchains.mbed_toolchain import mbedToolchain, TOOLCHAIN_PATHS
 from tools.utils import mkdir, NotSupportedException, run_cmd
 from tools.resources import FileRef
@@ -82,16 +81,11 @@ class ARM(mbedToolchain):
             if "--library_type=microlib" not in self.flags['common']:
                 self.flags['common'].append("--library_type=microlib")
 
-        if target.core == "Cortex-M0+":
-            cpu = "Cortex-M0"
-        elif target.core == "Cortex-M4F":
-            cpu = "Cortex-M4.fp"
-        elif target.core == "Cortex-M7FD":
-            cpu = "Cortex-M7.fp.dp"
-        elif target.core == "Cortex-M7F":
-            cpu = "Cortex-M7.fp.sp"
-        else:
-            cpu = target.core
+        cpu = {
+            "Cortex-M0+": "Cortex-M0plus",
+            "Cortex-M4F": "Cortex-M4.fp.sp",
+            "Cortex-M7F": "Cortex-M7.fp.sp",
+            "Cortex-M7FD": "Cortex-M7.fp.dp"}.get(target.core, target.core)
 
         ARM_BIN = join(TOOLCHAIN_PATHS['ARM'], "bin")
 
@@ -526,25 +520,25 @@ class ARMC6(ARM_STD):
             if "--library_type=microlib" not in self.flags['asm']:
                 self.flags['asm'].append("--library_type=microlib")
 
-        core = target.core
-        if CORE_ARCH[target.core] == 8:
-            if ((not target.core.endswith("-NS")) and
-                    kwargs.get('build_dir', False)):
-                # Create Secure library
+        if target.is_TrustZone_secure_target:
+            if kwargs.get('build_dir', False):
+                # Output secure import library
                 build_dir = kwargs['build_dir']
                 secure_file = join(build_dir, "cmse_lib.o")
                 self.flags["ld"] += ["--import_cmse_lib_out=%s" % secure_file]
 
-            # Add linking time preprocessor macro DOMAIN_NS
-            if target.core.endswith("-NS"):
-                define_string = self.make_ld_define("DOMAIN_NS", "0x1")
-                self.flags["ld"].append(define_string)
-                core = target.core[:-3]
-            else:
-                # Add secure build flag
-                self.flags['cxx'].append("-mcmse")
-                self.flags['c'].append("-mcmse")
+            # Enable compiler security extensions
+            self.flags['cxx'].append("-mcmse")
+            self.flags['c'].append("-mcmse")
 
+        if target.is_TrustZone_non_secure_target:
+            # Add linking time preprocessor macro DOMAIN_NS
+            # (DOMAIN_NS is passed to compiler and assembler via CORTEX_SYMBOLS
+            # in mbedToolchain.get_symbols)
+            define_string = self.make_ld_define("DOMAIN_NS", "0x1")
+            self.flags["ld"].append(define_string)
+
+        core = target.core_without_NS
         cpu = {
             "Cortex-M0+": "cortex-m0plus",
             "Cortex-M4F": "cortex-m4",
@@ -552,6 +546,7 @@ class ARMC6(ARM_STD):
             "Cortex-M7FD": "cortex-m7",
             "Cortex-M33": "cortex-m33+nodsp",
             "Cortex-M33F": "cortex-m33+nodsp",
+            "Cortex-M33E": "cortex-m33",
             "Cortex-M33FE": "cortex-m33"}.get(core, core)
 
         cpu = cpu.lower()
@@ -559,38 +554,32 @@ class ARMC6(ARM_STD):
         self.SHEBANG += " -mcpu=%s" % cpu
 
         # FPU handling
-        if core == "Cortex-M4F":
+        if core in ["Cortex-M4", "Cortex-M7", "Cortex-M33", "Cortex-M33E"]:
+            self.flags['common'].append("-mfpu=none")
+        elif core == "Cortex-M4F":
             self.flags['common'].append("-mfpu=fpv4-sp-d16")
             self.flags['common'].append("-mfloat-abi=hard")
-            self.flags['ld'].append("--cpu=cortex-m4")
-        elif core == "Cortex-M7F":
+        elif core == "Cortex-M7F" or core.startswith("Cortex-M33F"):
             self.flags['common'].append("-mfpu=fpv5-sp-d16")
             self.flags['common'].append("-mfloat-abi=hard")
-            self.flags['ld'].append("--cpu=cortex-m7.fp.sp")
         elif core == "Cortex-M7FD":
             self.flags['common'].append("-mfpu=fpv5-d16")
             self.flags['common'].append("-mfloat-abi=hard")
-            self.flags['ld'].append("--cpu=cortex-m7")
-        elif core == "Cortex-M33F":
-            self.flags['common'].append("-mfpu=fpv5-sp-d16")
-            self.flags['common'].append("-mfloat-abi=hard")
-            self.flags['ld'].append("--cpu=cortex-m33.no_dsp")
-        elif core == "Cortex-M33":
-            self.flags['common'].append("-mfpu=none")
-            self.flags['ld'].append("--cpu=cortex-m33.no_dsp.no_fp")
-        else:
-            self.flags['ld'].append("--cpu=%s" % cpu)
 
-        asm_cpu = {
-            "Cortex-M0+": "Cortex-M0",
-            "Cortex-M4F": "Cortex-M4.fp",
+        asm_ld_cpu = {
+            "Cortex-M0+": "Cortex-M0plus",
+            "Cortex-M4": "Cortex-M4.no_fp",
+            "Cortex-M4F": "Cortex-M4",
+            "Cortex-M7": "Cortex-M7.no_fp",
             "Cortex-M7F": "Cortex-M7.fp.sp",
-            "Cortex-M7FD": "Cortex-M7.fp.dp",
+            "Cortex-M7FD": "Cortex-M7",
             "Cortex-M33": "Cortex-M33.no_dsp.no_fp",
+            "Cortex-M33E": "Cortex-M33.no_fp",
             "Cortex-M33F": "Cortex-M33.no_dsp",
             "Cortex-M33FE": "Cortex-M33"}.get(core, core)
 
-        self.flags['asm'].append("--cpu=%s" % asm_cpu)
+        self.flags['asm'].append("--cpu=%s" % asm_ld_cpu)
+        self.flags['ld'].append("--cpu=%s" % asm_ld_cpu)
 
         self.cc = ([join(TOOLCHAIN_PATHS["ARMC6"], "armclang")] +
                    self.flags['common'] + self.flags['c'])
@@ -691,6 +680,9 @@ class ARMC6(ARM_STD):
 
         # Build main assemble command
         cmd = self.asm + ["-o", object, tempfile]
+        if self.is_mbed_studio_armc6:
+            # NOTE: the --ide=mbed argument is only for use with Mbed OS
+            cmd.insert(1, "--ide=mbed")
 
         # Return command array, don't execute
         return [cmd_pre, cmd]

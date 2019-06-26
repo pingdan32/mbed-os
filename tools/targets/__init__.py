@@ -380,12 +380,42 @@ class Target(namedtuple(
         return labels
 
     @property
+    def core_without_NS(self):
+        if self.core.endswith('-NS'):
+            return self.core[:-3]
+        else:
+            return self.core
+
+    # Mechanism for specifying TrustZone is subject to change - see
+    # discussion on https://github.com/ARMmbed/mbed-os/issues/9460
+    # In the interim, we follow heuristics that support existing
+    # documentation for ARMv8-M TF-M integration (check the "TFM" label),
+    # plus an extra "trustzone" flag set by M2351, and looking at the "-NS"
+    # suffix. This now permits non-TrustZone ARMv8 builds if
+    # having trustzone = false (default), no TFM flag, and no -NS suffix.
+    @property
+    def is_TrustZone_secure_target(self):
+        return (getattr(self, 'trustzone', False) or 'TFM' in self.labels) and not self.core.endswith('-NS')
+
+    @property
+    def is_TrustZone_non_secure_target(self):
+        return self.core.endswith('-NS')
+
+    @property
+    def is_TrustZone_target(self):
+        return self.is_TrustZone_secure_target or self.is_TrustZone_non_secure_target
+
+    @property
     def is_PSA_secure_target(self):
         return 'SPE_Target' in self.labels
 
     @property
     def is_PSA_non_secure_target(self):
         return 'NSPE_Target' in self.labels
+
+    @property
+    def is_PSA_target(self):
+        return self.is_PSA_secure_target or self.is_PSA_non_secure_target
 
     def get_post_build_hook(self, toolchain_labels):
         """Initialize the post-build hooks for a toolchain. For now, this
@@ -403,6 +433,9 @@ class Target(namedtuple(
         try:
             hook_data = self.post_binary_hook
         except AttributeError:
+            return None
+        # If hook is null, also return
+        if hook_data is None:
             return None
         # A hook was found. The hook's name is in the format
         # "classname.functionname"

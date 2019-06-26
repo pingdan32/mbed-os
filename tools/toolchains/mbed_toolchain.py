@@ -255,6 +255,7 @@ class mbedToolchain:
                     "COMPONENT_" + data + "=1"
                     for data in self.target.components
                 ]
+
                 # Add extra symbols passed via 'macros' parameter
                 self.cxx_symbols += self.macros
 
@@ -763,7 +764,7 @@ class mbedToolchain:
         self.mem_stats(mapfile)
 
         self.notify.var("compile_succeded", True)
-        self.notify.var("binary", filename)
+        self.notify.var("binary", full_path)
 
         return full_path, updatable
 
@@ -915,6 +916,7 @@ class mbedToolchain:
             pass
 
     STACK_PARAM = "target.boot-stack-size"
+    TFM_LVL_PARAM = "tfm.level"
 
     def add_linker_defines(self):
         params, _ = self.config_data
@@ -927,12 +929,28 @@ class mbedToolchain:
             self.ld.append(define_string)
             self.flags["ld"].append(define_string)
 
+        # Pass TFM_LVL to linker files, so single linker file can support different TFM security levels.
+        if self.TFM_LVL_PARAM in params:
+            define_string = self.make_ld_define(
+                "TFM_LVL",
+                params[self.TFM_LVL_PARAM].value
+            )
+            self.ld.append(define_string)
+            self.flags["ld"].append(define_string)
+
         if self.target.is_PSA_secure_target:
             for flag, param in [
                 ("MBED_PUBLIC_RAM_START", "target.public-ram-start"),
                 ("MBED_PUBLIC_RAM_SIZE", "target.public-ram-size")
             ]:
                 define_string = self.make_ld_define(flag, params[param].value)
+                self.ld.append(define_string)
+                self.flags["ld"].append(define_string)
+
+        if hasattr(self.target, 'post_binary_hook'):
+            if self.target.post_binary_hook is None:
+                define_string = self.make_ld_define(
+                    "DISABLE_POST_BINARY_HOOK", 1)
                 self.ld.append(define_string)
                 self.flags["ld"].append(define_string)
 
