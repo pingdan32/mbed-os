@@ -84,8 +84,8 @@ typedef enum {
     P0_30 = p30,
     P0_31 = p31,
 
-    RX_PIN_NUMBER           = p12,
-    TX_PIN_NUMBER           = p11,
+    RX_PIN_NUMBER           = (int)0xFFFFFFFF,
+    TX_PIN_NUMBER           = p29,
     CTS_PIN_NUMBER          = (int)0xFFFFFFFF,
     RTS_PIN_NUMBER          = (int)0xFFFFFFFF,
 
@@ -98,26 +98,23 @@ typedef enum {
     STDIO_UART_RTS          = RTS_PIN_NUMBER,
 
     // MPU9250 interface
-    MPU9250_SPI_MOSI_PIN    = p29,
-    MPU9250_SPI_MISO_PIN    = p28,
-    MPU9250_SPI_SS_PIN      = p31,
-    MPU9250_SPI_SCK_PIN     = p30,
-    MPU9250_SPI_INT         = p27,
+    MPU9250_SPI_MISO_PIN    = p10,
+    MPU9250_SPI_MOSI_PIN    = p11,
+    MPU9250_SPI_SCK_PIN     = p12,
+    MPU9250_SPI_SS_PIN      = p13,
+    MPU9250_SPI_INT         = p14,
 
     // 0.96' OLED interface
     OLED_I2C_SDA_PIN        = p18,
-    OLED_I2C_SCL_PIN        = p19,
-    OLED_I2C_RST_PIN        = p20,
+    OLED_I2C_SCL_PIN        = p17,
+    OLED_I2C_RST_PIN        = p16,
 
     // Stepper Motor interface
-    MOTOR_PWR_PIN           = p2,
+    MOTOR_PWR_PIN           = p3,
     MOTOR_EN_PIN            = p6,
-    MOTOR_SLEEP_PIN         = p10,
+    MOTOR_SLEEP_PIN         = p7,
     MOTOR_DIR_PIN           = p4,
     MOTOR_STEP_PIN          = p5,
-    MOTOR_M1_PIN            = p7,
-    MOTOR_M0_PIN            = p8,
-    MOTOR_FAULT_PIN         = p9,
 
     // Infrared Detection interface
     IR_PWR_PIN              = p22,
@@ -125,21 +122,21 @@ typedef enum {
     IR_RST_PIN              = p23,
 
     // Battery charge state
-    BAT_CHG_ING_PIN         = p13, // LOW
-    BAT_CHG_CMP_PIN         = p14, // LOW
+    BAT_CHGING_PIN          = p8, // LOW
+    BAT_PGOOD_PIN           = p9, // LOW
     // Battery level 
-    BAT_LEVEL_PIN           = p3,
+    BAT_LEVEL_PIN           = p2,
     // System led
     SYS_LED_PIN             = p25,
     // mbed used LED1
     LED1                    = SYS_LED_PIN,
     // BUzz interface
-    BUZZ_PWR_PIN            = p26,
+    BUZZ_PWR_PIN            = p21,
 
     // Button
-    SET_BUTTON_PIN          = p15,
-    INC_BUTTON_PIN          = p16,
-    DEC_BUTTON_PIN          = p17,
+    RST_BUTTON_PIN          = p15,
+    INC_BUTTON_PIN          = p20,
+    DEC_BUTTON_PIN          = p19,
 
     // Not connected
     NC = (int)0xFFFFFFFF

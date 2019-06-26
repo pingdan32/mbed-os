@@ -134,7 +134,8 @@
                 "NRF52_PAN_63",
                 "NRF52_PAN_64"
             ],
-		"target.console-uart-flow-control": "null"
+            "target.lf_clock_src": "NRF_LF_SRC_XTAL",
+		    "target.console-uart-flow-control": "null"
         },
         "RBLAB_BLENANO2": {
             "target.macros_add": [

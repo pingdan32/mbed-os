@@ -173,6 +173,20 @@ ret_code_t nrf_drv_pwm_init(nrf_drv_pwm_t const * const p_instance,
     if (p_cb->handler)
 #endif
     {
+#if defined(__MBED__) && __MBED__ == 1
+#if NRF_MODULE_ENABLED(PWM0) && defined (PWM0_CH_NUM)
+        extern void PWM0_IRQHandler(void);
+        NVIC_SetVector(PWM0_IRQn, (uint32_t)PWM0_IRQHandler);
+#endif
+#if NRF_MODULE_ENABLED(PWM1) && defined (PWM1_CH_NUM)
+        extern void PWM1_IRQHandler(void);
+        NVIC_SetVector(PWM1_IRQn, (uint32_t)PWM1_IRQHandler);
+#endif
+#if NRF_MODULE_ENABLED(PWM2) && defined (PWM2_CH_NUM)
+        extern void PWM2_IRQHandler(void);
+        NVIC_SetVector(PWM2_IRQn, (uint32_t)PWM2_IRQHandler);
+#endif
+#endif
         nrf_drv_common_irq_enable(nrf_drv_get_IRQn(p_instance->p_registers),
             p_config->irq_priority);
     }
