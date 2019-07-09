@@ -217,6 +217,9 @@ void SystemInit(void)
         // Do nothing.
     }
 
+    // Instruction cache is turn on to decrease execution time and improve performance.
+    NRF_NVMC->ICACHECNF = 0x01;
+
     /**
      * Mbed HAL specific code section.
      *
