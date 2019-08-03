@@ -124,7 +124,8 @@ typedef enum {
     // Battery charge state
     BAT_CHGING_PIN          = p3, // LOW
     BAT_PGOOD_PIN           = p4, // LOW
-    // Battery level 
+    // Battery level
+    BAT_EN_PIN              = p27,
     BAT_LEVEL_PIN           = p5,
     // System led
     SYS_LED_PIN             = p25,
