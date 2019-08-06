@@ -135,9 +135,12 @@ typedef enum {
     BUZZ_PWR_PIN            = p26,
 
     // Button
-    RST_BUTTON_PIN          = p21,
-    INC_BUTTON_PIN          = p16,
+    RST_BUTTON_PIN          = p16,
+    INC_BUTTON_PIN          = p21,
     DEC_BUTTON_PIN          = p17,
+
+    // DCDC ENABLE
+    DCDC_EN_PIN             = (int)0xFFFFFFFF,
 
     // Not connected
     NC = (int)0xFFFFFFFF
